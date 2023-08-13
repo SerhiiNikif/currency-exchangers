@@ -16,7 +16,7 @@ class ExchangeController {
             const lines = req.file.buffer.toString('utf-8');
             const parsedData = await parseData(lines);
             const insertDataService = await exchangeService.insertData(parsedData)
-            res.status(200).json(insertDataService)
+            res.status(201).json(insertDataService)
         } catch (error) {
             next(error);
         }
@@ -26,9 +26,9 @@ class ExchangeController {
     async getExchangersWithHighestProfit(req, res, next) {
         try {
             const calculateAndRetrieveProfitService = await exchangeService.calculateAndRetrieveProfit();
-            res.json(calculateAndRetrieveProfitService)
-        } catch (e) {
-            next(e);
+            res.status(200).json(calculateAndRetrieveProfitService)
+        } catch (error) {
+            next(error);
         }
     }
 }

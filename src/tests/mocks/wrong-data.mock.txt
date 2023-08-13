@@ -1,0 +1,5 @@
+<exchange-offices>
+  <exchange-office>
+    <id>1</id>
+    <name>Exchanger 1</name>
+    <country>UKR</country>

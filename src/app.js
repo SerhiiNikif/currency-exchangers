@@ -15,6 +15,7 @@ app.use(express.json());
 app.use('/api', router);
 
 // Using middleware to handle API errors
+app.use((req, res) => res.status(404).json({ message: "Not found" }));
 app.use(apiErrorHandler);
 
 /**
@@ -33,3 +34,4 @@ const start = async () => {
 
 start();
 
+module.exports = app;
