@@ -21,6 +21,16 @@ class ExchangeController {
             next(error);
         }
     }
+
+    // Gets one exchanger with the highest profit from each country
+    async getExchangersWithHighestProfit(req, res, next) {
+        try {
+            const calculateAndRetrieveProfitService = await exchangeService.calculateAndRetrieveProfit();
+            res.json(calculateAndRetrieveProfitService)
+        } catch (e) {
+            next(e);
+        }
+    }
 }
 
 module.exports = new ExchangeController();

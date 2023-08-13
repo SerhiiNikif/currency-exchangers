@@ -1,3 +1,4 @@
+// This file exports a database connection using Sequelize.
 const {Sequelize} = require('sequelize');
 
 module.exports = new Sequelize(
