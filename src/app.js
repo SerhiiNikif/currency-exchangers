@@ -3,12 +3,19 @@ require('dotenv').config();
 const express = require('express');
 
 const sequelizeSetup = require('./config/sequelizeSetup.js');
+const router = require('./routes/exchange-route.js');
+const { apiErrorHandler } = require('./middlewares/index.js');
 
 const app = express();
 
 const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
+
+app.use('/api', router);
+
+// Using middleware to handle API errors
+app.use(apiErrorHandler);
 
 /**
  * An asynchronous function that authenticates with the database,
