@@ -1,13 +1,14 @@
-const ApiError = require('../exceptions/api-error.js');
+const checkFileType = require('./checkFileType.js');
+
 /**
  * Parses data strings and converts them into a structured data object.
  * @param {string} lines - A text file containing the data to be parsed.
  * @returns {Object} - A structured data object with information about exchange points and countries.
  */
-module.exports = async function (lines) {
-    lines = lines.split('\n');
-    if (lines[0].trim() !== 'exchange-offices') throw ApiError.SyntaxError('The file format is incorrect') 
-    
+module.exports = function (lines, fileName) {
+    // Check and validate the file type before proceeding.
+    lines = checkFileType(lines, fileName);
+
     // An object in which structured information about exchange points and countries will be stored.
     const parsedData = { 'exchange-offices': [], countries: [] };
     let currentExchangeOffice = null;

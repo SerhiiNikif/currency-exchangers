@@ -10,11 +10,11 @@ const ApiError = require('../exceptions/api-error.js');
   */
 class ExchangeController {
     // Handles loading data from a file and inserting it into the database.
-    async insertDataFromFile(req, res, next) {
+    async insertData(req, res, next) {
         try {
             if (!req.file) throw ApiError.BadRequest("No file uploaded");
             const lines = req.file.buffer.toString('utf-8');
-            const parsedData = await parseData(lines);
+            const parsedData = await parseData(lines, req.file.originalname);
             const insertDataService = await exchangeService.insertData(parsedData)
             res.status(201).json(insertDataService)
         } catch (error) {
