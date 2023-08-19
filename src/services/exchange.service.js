@@ -1,6 +1,6 @@
-const sequelize = require('sequelize');
 const sequelizeSetup = require('../config/sequelizeSetup.js');
 const { ExchangeOffice, Exchange, Rate, Country } = require('../models');
+const queries = require('./exchange-queries.js');
 
 /**
  * The ExchangeService class provides methods for working with data about exchange points and countries.
@@ -71,84 +71,10 @@ class ExchangeService {
      * @returns {Promise<Object[]>} Promis, which contains an array of the most profitable exchangers for each country.
      */
     async calculateAndRetrieveProfit() {
-        const today = new Date();
-        const lastMonthStartDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-
-        const [exchangeOffices, exchanges, rates, countries] = await Promise.all([
-            ExchangeOffice.findAll(),
-            Exchange.findAll({ where: { date: { [sequelize.Op.gte]: lastMonthStartDate } } }),
-            Rate.findAll({ where: { date: { [sequelize.Op.gte]: lastMonthStartDate } } }),
-            Country.findAll()
-        ]);
-
-        const profitForEachExchanger = this.getProfitForEachExchanger(exchangeOffices, exchanges, rates);
-
-        const officeInEachCountry = countries.map(country => 
-            profitForEachExchanger.filter(exchange => exchange.country === country.code)
-        );
-
-        const result = officeInEachCountry.map(e => 
-            e.reduce((maxElement, currentElement) => 
-                currentElement.profit > maxElement.profit ? currentElement : maxElement
-            )
-        );
-
-        return result.sort((a, b) => b.profit - a.profit)
-    }
-
-    /**
-     * Calculates profit for each exchange point taking into account exchanges and rates.
-     * @param {Object[]} exchangeOffices - An array of objects of exchange points.
-     * @param {Object[]} exchanges - An array of exchange objects.
-     * @param {Object[]} rates - An array of rate objects.
-     * @returns {Object[]} Array with profit data for each exchange point.
-     */
-    getProfitForEachExchanger(exchangeOffices, exchanges, rates) {
-        return exchangeOffices.map(ofice => {
-            let profit = 0;
-            const officeExchanges = exchanges.filter(e => e.exchangeOfficeId === ofice.id);
-
-            officeExchanges.forEach(exchange => {
-                const rateOffice = rates.filter(rate => exchange.exchangeOfficeId === rate.exchangeOfficeId);
-                const { ask, from, to } = exchange;
-            
-                const exchangeRate = this.getRate(rateOffice, from, to);
-                const exchangeResult = exchangeRate && ask / exchangeRate.out;
-            
-                const rateUSD = this.getRate(rateOffice, from, 'USD');
-                const convertToUSD = from === 'USD' ? exchangeResult : rateUSD && exchangeResult * rateUSD.out;
-                
-                profit += this.addConversionFee(convertToUSD);
-            });
-        
-            return {
-                id: ofice.dataValues.id,
-                name: ofice.dataValues.name,
-                country: ofice.dataValues.country,
-                profit
-            }
+        return await sequelizeSetup.query(queries.getMostProfitableExchangersQuery, {
+            type: sequelizeSetup.QueryTypes.SELECT
         });
     }
-
-    /**
-     * Finds the exchange rate for the specified currencies from the list of rates.
-     * @param {Object[]} rates - An array of rate objects.
-     * @param {string} from - The currency from which the exchange is made.
-     * @param {string} to - The currency in which the exchange is made.
-     * @returns {Object|undefined} The rate object or undefined if the rate is not found.
-     */
-    getRate(rates, from, to) {
-        return rates.find(r => r.from === from && r.to === to);
-    }
-
-    /**
-     * Adds a conversion fee to the transferred amount.
-     * @param {number} item - The amount to which the commission is added.
-     * @returns {number} Amount with added commission.
-     */
-    addConversionFee(item) {
-        return item / 100 * 2
-    }    
 }
 
 module.exports = new ExchangeService();

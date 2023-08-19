@@ -1,5 +1,6 @@
 const {DataTypes} = require('sequelize');
 const sequelize = require('../config/sequelizeSetup.js');
+const ExchangeOffice = require('./ExchangeOffice.js');
 
 const Rate = sequelize.define('rate', {
     from: DataTypes.STRING,
@@ -8,6 +9,9 @@ const Rate = sequelize.define('rate', {
     out: DataTypes.FLOAT,
     reserve: DataTypes.INTEGER,
     date: DataTypes.DATE,
-});
+    exchangeOfficeId: DataTypes.INTEGER 
+}, { timestamps: false });
+
+Rate.belongsTo(ExchangeOffice, { foreignKey: 'exchangeOfficeId' });
 
 module.exports = Rate;

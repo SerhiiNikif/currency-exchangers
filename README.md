@@ -1,3 +1,70 @@
+For the project to work correctly, you need to download a file in the correct format, for example:
+
+__file.txt__
+```
+exchange-offices
+  exchange-office
+    id = 1
+    name = Exchanger 1
+    country = UKR
+    exchanges
+      exchange
+        from = EUR
+        to = UAH
+        ask = 4000
+        date = 2023-07-23 21:55:33
+      exchange
+        from = UAH
+        to = EUR
+        ask = 50
+        date = 2023-07-20 20:55:33
+    rates
+      rate
+        from = UAH
+        to = EUR
+        in = 0.025
+        out = 0.024
+        reserve = 120000
+        date = 2023-07-21 19:55:33
+      rate
+        from = EUR
+        to = UAH
+        in = 38
+        out = 40
+        reserve = 150000
+        date = 2023-07-22 18:55:33
+      rate
+        from = UAH
+        to = USD
+        in = 0.028
+        out = 0.025
+        reserve = 120000
+        date = 2023-07-21 19:55:33
+      rate
+        from = EUR
+        to = USD
+        in = 1.2
+        out = 1.1
+        reserve = 150000
+        date = 2023-07-22 18:55:33
+  exchange-office
+    id = 2
+    name = Exchanger 2
+    country = UKR
+    rates
+      rate
+        from = AUD
+        to = CAD
+        in = 0.87
+        out = 0.86
+        reserve = 150000
+        date = 2023-07-23 17:55:33
+  countries
+    country
+      code = UKR
+      name = Ukraine
+```
+
 ## Questions
 
 ### 1. How to change the code to support different file format versions?
@@ -36,23 +103,23 @@ __req.body__
             "exchanges": [
                 {
                     "from": "EUR",
-                    "to": "USD",
-                    "ask": "110",
+                    "to": "UAH",
+                    "ask": "4000",
                     "date": "2023-07-23 21:55:33"
                 },
                 {
-                    "from": "USD",
-                    "to": "UAH",
-                    "ask": "400",
+                    "from": "UAH",
+                    "to": "EUR",
+                    "ask": "50",
                     "date": "2023-07-20 20:55:33"
                 }
             ],
             "rates": [
                 {
-                    "from": "EUR",
-                    "to": "USD",
-                    "in": "1.1",
-                    "out": "1",
+                    "from": "UAH",
+                    "to": "EUR",
+                    "in": "0.025",
+                    "out": "0.024",
                     "reserve": "120000",
                     "date": "2023-07-21 19:55:33"
                 },
@@ -85,27 +152,21 @@ class ExchangeController {
 ```
 ### 3. If in the future it will be necessary to do the calculations using the national bank rate, how could this be added to the system?
 
-You need to add logic to the function getProfitForEachExchanger:
+It is necessary to create a connection to the national Bank and convert the getMostProfitableExchangersQuery variable into an asynchronous function:
 
 __exchange.service.js__
 ```
-class ExchangeService {
+const queries = require('./exchange-queries.js');
+const axios = require('axios');
+
     constructor() {
         this.rateAPIData = null; // A variable for storing cached data
     }
 
-    another code…
-
-    async getProfitForEachExchanger(exchangeOffices, exchanges, rates) {
-        const rateAPI = await this.getRateAPIData();
-        another code…
-            officeExchanges.forEach(exchange => {
-                const { ask, to } = exchange;
-                const toRate = rateAPI.conversion_rates[to];
-                profit += this.addConversionFee(ask / toRate);
-            });
-        
-            another code…
+    async calculateAndRetrieveProfit() {
+        const rateAPI = await this.getRateAPIData(); // Generating queries from a separate module
+        return await sequelizeSetup.query(await queries.getMostProfitableExchangersQuery(rateAPI), {
+            type: sequelizeSetup.QueryTypes.SELECT
         });
     }
 
@@ -117,6 +178,68 @@ class ExchangeService {
         return this.rateAPIData;
     }
 ```
+
+__exchange-queries.js__
+```
+const createConversionQuery = (currency, conversionRate, exchangeField) => {
+    return `WHEN '${currency}' THEN ${exchangeField} / ${conversionRate}`;
+};
+
+async function getMostProfitableExchangersQuery(rateAPI) {
+    const oneMonthInterval = "INTERVAL '1 month'";
+    const baseConversionRates = [];
+    const askConversionRates = [];
+
+    for (const currency in rateAPI.conversion_rates) {
+        const conversionRate = rateAPI.conversion_rates[currency];
+
+        baseConversionRates.push(createConversionQuery(currency, conversionRate, 'q1.basicExchange'));
+        askConversionRates.push(createConversionQuery(currency, conversionRate, 'e.ask'));
+    }
+
+    const basicToUSD = `CASE q1.to ${baseConversionRates.join('\n')} END AS basicToUSD`;
+    const askToUSD = `CASE e.to ${askConversionRates.join('\n')} END AS askToUSD `;
+
+    const query = `
+        another code…
+
+        Query2 AS (
+            -- Request to convert Query1 to USD
+            SELECT  q1.country,
+                    q1.exchangeId,
+                    ${basicToUSD}
+            FROM rates r
+            JOIN Query1 q1 ON r.from = q1.to AND r.to = 'USD' AND r."exchangeOfficeId" = q1."exchangeOfficeId"
+            WHERE r.date >= NOW() - ${oneMonthInterval}
+            GROUP BY q1.country, q1.exchangeId, q1.basicExchange, q1.to -- 100 EUR -> 110 USD
+        ),
+
+        Query3 AS (
+            -- Request to convert ask to USD
+            SELECT  eo.id as officeId,
+                    eo.name as officeName,
+                    e.id as exchangeId,
+                    e.to,
+                    ${askToUSD}
+            FROM exchange_offices eo
+            JOIN exchanges e ON eo.id = e."exchangeOfficeId"
+            JOIN rates r ON e."exchangeOfficeId" = r."exchangeOfficeId"
+            WHERE e.date >= NOW() - ${oneMonthInterval}
+                AND r.date >= NOW() - ${oneMonthInterval}
+                AND r.from = e.to
+                AND r.to = 'USD'
+            GROUP BY eo.id, eo.name, e.id, e.ask, r.in, e.to -- 4000 UAH -> 112 USD
+        ),
+
+        another code…
+    return query;
+};
+
+module.exports = {
+    getMostProfitableExchangersQuery
+}
+```
+
 
 ### 4. How would it be possible to speed up the execution of requests if the task allowed you to update market data once a day or even less frequently? Please explain all possible solutions you could think of.
 
